@@ -148,4 +148,132 @@ contract NobleDollarTest is Test {
         assertEq(usdn.principalOf(USER2), 499944252792);
         assertEq(usdn.yield(USER2), 55747208);
     }
+
+    function test_transferToUSDNFromNonZeroAccountReverts () public {
+
+        // ACT: Transfer of 1M $USDN from Noble Core to USER1.
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        (bool mintSuccess,) = MAILBOX.call(mintPayload);
+
+        uint256 _user1Balance = usdn.balanceOf(USER1);
+
+        assertEq(_user1Balance, 1000000e6, "user 1 should have 1 million usdn");
+
+        vm.expectRevert(NobleDollar.InvalidTransfer());
+
+        vm.prank(USER1);
+        usdn.transfer(address(usdn), 1000e6);
+
+    }
+
+    function test_transferFromToUSDNFromNonZeroAccountReverts () public {
+
+        // ACT: Transfer of 1M $USDN from Noble Core to USER1.
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        (bool mintSuccess,) = MAILBOX.call(mintPayload);
+
+        uint256 _user1Balance = usdn.balanceOf(USER1);
+
+        assertEq(_user1Balance, 1000000e6, "user 1 should have 1 million usdn");
+
+        vm.prank(USER1);
+        usdn.approve(USER2, type(uint256).max));
+
+        vm.expectRevert(NobleDollar.InvalidTransfer());
+
+        vm.prank(USER2);
+        usdn.transferFrom(USER1, address(usdn), 1000e6);
+
+    }
+
+    function test_noClaimableYield () public {
+
+        // Test when timestamp has not progressed from mint so claimable yield should revert
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        (bool mintSuccess,) = MAILBOX.call(mintPayload);
+
+        vm.expectRevert(NobleDollar.NoClaimableYield.selector);
+
+        vm.prank(USER1);
+        usdn.claim();
+
+        // Test when account with zero balance calls claim()
+        vm.expectRevert(NobleDollar.NoClaimableYield.selector);
+
+        vm.prank(USER2);
+        usdn.claim();
+
+    }
+
+    function test_uint256MaxMint () public {
+
+        // Test when timestamp has not progressed from mint so claimable yield should revert
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
+        (bool mintSuccess,) = MAILBOX.call(mintPayload);
+
+        uint256 _user1Balance = usdn.balanceOf(USER1);
+
+        assertEq(_user1Balance, type(uint256).max, "user 1 should have max usdn");
+
+        // Test when timestamp has not progressed from mint so claimable yield should revert
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa960450000000000000000000000000000000000000000000000000000000000000001"
+        );
+        (bool mintSuccess, bytes memory data) = MAILBOX.call(mintPayload);
+
+        assertEq(mintSuccess, false, "minting more than uint256 max should fail");
+
+    }
+
+    function test_secondDepositPostYieldReceivesCorrectIndex () public {
+
+        // Mint 1 million to USER1
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
+        (bool mintSuccess,) = MAILBOX.call(mintPayload);
+
+        // Accrue 1 million in yield
+        bytes memory yieldPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000014e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        (bool yieldSuccess,) = MAILBOX.call(yieldPayload);
+
+        // Mint 1 million to USER2
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f2f1acbe0ba726fee8d75f3e32900526874740bb000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        (bool mintSuccess,) = MAILBOX.call(mintPayload);
+
+        uint256 _principalUSER1 = usdn.principalOf(USER1);
+        uint256 _principalUSER2 = usdn.principalOf(USER2);
+
+        assertEq(_principalUSER1, 1000000e6, "user 1 should have 1 million principal");
+        assertEq(_principalUSER2, 500000e6, "user 2 should have 500 thousand principal");
+
+    }
 }
