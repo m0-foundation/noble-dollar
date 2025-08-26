@@ -366,4 +366,71 @@ contract NobleDollarTest is Test {
         assertEq(usdn.yield(USER2), 0, "USER2 should have no yield after claiming");
     }
 
+
+    function test_claimYieldAfterTransfer() public {
+        // Mint 1M to USER1
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        ( bool success, ) = MAILBOX.call(mintPayload);
+        
+        // Accrue 1M yield (100% yield)
+        bytes memory yieldPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000014e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        ( success, ) = MAILBOX.call(yieldPayload);
+        
+        // USER1 should have 1M yield
+        assertEq(usdn.yield(USER1), 1e12, "USER1 should have 1M yield before transfer");
+        
+        // Transfer half (500k) to USER2
+        vm.prank(USER1);
+        usdn.transfer(USER2, 5e11);
+        
+        // Call yield
+        uint256 user1Yield = usdn.yield(USER1);
+        uint256 user2Yield = usdn.yield(USER2);
+        
+        assertEq(user1Yield, 5e11, "USER1 should have 500k of yield");
+        assertEq(user2Yield, 5e11, "USER2 should have 500k of yield");
+        
+        // USER1 claims their yield
+        vm.prank(USER1);
+        usdn.claim();
+        assertEq(usdn.balanceOf(USER1), 1e12, "USER1 should have 1M balance after claiming yield");
+
+        // USER2 claims their yield
+        vm.prank(USER2);
+        usdn.claim();
+        assertEq(usdn.balanceOf(USER2), 1e12, "USER2 should have 1M balance after claiming yield");
+        
+        // Accrue another 1M yield (now distributed proportionally)
+        ( success, ) = MAILBOX.call(yieldPayload);
+        
+        // Both users should have yield proportional to their principal
+        // USER1 has ~500k principal, USER2 has ~500k principal (from transfer)
+        // So each should get approximately 500k yield
+        uint256 user1NewYield = usdn.yield(USER1);
+        uint256 user2NewYield = usdn.yield(USER2);
+        
+        // Due to rounding, yields might not be exactly 500k each
+        assertApproxEqAbs(user1NewYield, 5e11, 2, "USER1 should have ~500k new yield");
+        assertApproxEqAbs(user2NewYield, 5e11, 2, "USER1 should have ~500k new yield");
+
+        // USER1 claims their yield
+        vm.prank(USER1);
+        usdn.claim();
+        assertEq(usdn.balanceOf(USER1), 15e11, "USER1 should have 1.5M balance after claiming yield");
+
+        // USER2 claims their yield
+        vm.prank(USER2);
+        usdn.claim();
+        assertEq(usdn.balanceOf(USER2), 15e11, "USER2 should have 1.5M balance after claiming yield");
+        
+    }
+
 }
