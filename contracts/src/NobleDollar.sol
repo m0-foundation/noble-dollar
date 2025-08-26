@@ -189,6 +189,9 @@ contract NobleDollar is HypERC20 {
         // Distribute yield, derive new index from the adjusted total supply.
         // NOTE: We don't want to perform any principal updates in the case of yield accrual.
         if (to == address(this)) {
+
+            if ($.totalPrincipal == 0) return;
+
             uint128 oldIndex = $.index;
 
             $.index = IndexingMath.getIndexRoundedDown(totalSupply(), $.totalPrincipal);
