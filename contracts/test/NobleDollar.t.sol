@@ -319,4 +319,51 @@ contract NobleDollarTest is Test {
         assertEq(usdn.totalSupply(), 2e12, "Total supply should reflect the claimed yield");
     }
 
+    function test_claimYieldMultipleUsers() public {
+        // Mint 1M to USER1 and 2M to USER2
+        bytes memory mintPayload1 = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        (bool mintSuccess1,) = MAILBOX.call(mintPayload1);
+        assertTrue(mintSuccess1);
+        
+        bytes memory mintPayload2 = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f2f1acbe0ba726fee8d75f3e32900526874740bb000000000000000000000000000000000000000000000000000001d1a94a2000"
+        );
+        (bool mintSuccess2,) = MAILBOX.call(mintPayload2);
+        assertTrue(mintSuccess2);
+        
+        // Accrue yield equal to total deposits (3M USDN total yield)
+        bytes memory yieldPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000014e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000000000000000000000000000000002ba7def3000"
+        );
+        (bool yieldSuccess,) = MAILBOX.call(yieldPayload);
+        assertTrue(yieldSuccess);
+        
+        // Both users should have yield equal to their deposits (100% yield)
+        uint256 user1Yield = usdn.yield(USER1);
+        uint256 user2Yield = usdn.yield(USER2);
+        
+        assertEq(user1Yield, 1e12, "USER1 should have 1M yield");
+        assertEq(user2Yield, 2e12, "USER2 should have 2M yield");
+        
+        // USER1 claims
+        vm.prank(USER1);
+        usdn.claim();
+        assertEq(usdn.balanceOf(USER1), 2e12, "USER1 balance should be doubled");
+        assertEq(usdn.yield(USER1), 0, "USER1 should have no yield after claiming");
+        
+        // USER2 claims
+        vm.prank(USER2);
+        usdn.claim();
+        assertEq(usdn.balanceOf(USER2), 4e12, "USER2 balance should be doubled");
+        assertEq(usdn.yield(USER2), 0, "USER2 should have no yield after claiming");
+    }
+
 }
