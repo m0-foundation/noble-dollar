@@ -276,4 +276,47 @@ contract NobleDollarTest is Test {
         assertEq(_principalUSER2, 500000e6, "user 2 should have 500 thousand principal");
 
     }
+
+    function test_claimYield() public {
+        // Mint 1M USDN to USER1
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        (bool mintSuccess,) = MAILBOX.call(mintPayload);
+        assertTrue(mintSuccess, "Initial mint should succeed");
+        
+        // Verify initial state
+        assertEq(usdn.balanceOf(USER1), 1e12, "USER1 should have 1M USDN");
+        assertEq(usdn.yield(USER1), 0, "USER1 should have no yield initially");
+        
+        // Accrue yield equal to deposit (1M USDN - 100% yield)
+        bytes memory yieldPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000014e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        (bool yieldSuccess,) = MAILBOX.call(yieldPayload);
+        assertTrue(yieldSuccess, "Yield accrual should succeed");
+        
+        // Verify yield is available
+        uint256 claimableYield = usdn.yield(USER1);
+        assertEq(claimableYield, 1e12, "USER1 should have 1M USDN in claimable yield");
+        
+        // Claim yield
+        vm.expectEmit(true, true, true, true);
+        emit NobleDollar.YieldClaimed(USER1, 1e12);
+        
+        vm.prank(USER1);
+        usdn.claim();
+        
+        // Verify post-claim state
+        assertEq(usdn.balanceOf(USER1), 2e12, "USER1 balance should be doubled (original + yield)");
+        assertEq(usdn.balanceOf(address(usdn)), 0, "Contract balance should be zero after full claim");
+        assertEq(usdn.yield(USER1), 0, "USER1 should have no claimable yield after claiming");
+        assertEq(usdn.principalOf(USER1), 1e12, "USER1 principal should remain unchanged");
+        assertEq(usdn.totalSupply(), 2e12, "Total supply should reflect the claimed yield");
+    }
+
 }
