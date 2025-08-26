@@ -456,4 +456,41 @@ contract NobleDollarTest is Test {
         assertEq(usdn.totalPrincipal(), 0, "Total principal should still be 0");
     }
 
+    function test_indexUpdateAfterBurn() public {
+        // Setup: Mint 1M to USER1
+        bytes memory mintPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        MAILBOX.call(mintPayload);
+        
+        // Accrue 100% yield
+        bytes memory yieldPayload1 = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000014e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        MAILBOX.call(yieldPayload1);
+        assertEq(usdn.index(), 2e12, "Index should be 2.0 after 100% yield");
+        
+        // USER1 burns all their tokens (transfer to address(0))
+        vm.prank(USER1);
+        usdn.transfer(address(0), usdn.balanceOf(USER1));
+        
+        assertEq(usdn.totalPrincipal(), 0, "Total principal should be 0 after burn");
+        assertEq(usdn.totalSupply(), 1e12, "Contract should still hold unclaimed yield");
+        
+        // Try to accrue more yield with zero principal
+        bytes memory yieldPayload2 = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000024e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a0000000000000000000000000000000000000000000000000000000074742400"
+        );
+        MAILBOX.call(yieldPayload2);
+        
+        // Index should remain at 2.0 since there's no principal
+        assertEq(usdn.index(), 2e12, "Index should remain unchanged with zero principal");
+    }
+
 }
