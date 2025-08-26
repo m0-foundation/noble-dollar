@@ -85,7 +85,9 @@ contract NobleDollar is HypERC20 {
         }
     }
 
-    constructor(address mailbox_) HypERC20(6, 1, mailbox_) {}
+    constructor(address mailbox_) HypERC20(6, 1, mailbox_) {
+        _disableInitializers();
+    }
 
     function initialize(address hook_, address ism_) public virtual initializer {
         super.initialize("Noble Dollar", "USDN", hook_, ism_, msg.sender);
