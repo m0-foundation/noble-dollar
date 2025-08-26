@@ -433,4 +433,27 @@ contract NobleDollarTest is Test {
         
     }
 
+    function test_indexUpdateWithZeroTotalPrincipal() public {
+        // Edge case: yield accrual when totalPrincipal is 0 (no deposits)
+        // The contract should handle this gracefully without reverting
+        
+        assertEq(usdn.totalSupply(), 0, "Total supply should be 0 initially");
+        assertEq(usdn.totalPrincipal(), 0, "Total principal should be 0 initially");
+        assertEq(usdn.index(), 1e12, "Index should be 1.0 initially");
+        
+        // Try to accrue yield when no principal exists
+        bytes memory yieldPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000014e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
+        (bool success,) = MAILBOX.call(yieldPayload);
+        assertTrue(success, "Yield accrual should succeed even with zero principal");
+        
+        // Index should remain unchanged when totalPrincipal is 0
+        assertEq(usdn.index(), 1e12, "Index should remain 1.0 when no principal exists");
+        assertEq(usdn.totalSupply(), 1e12, "Supply should increase by yield amount");
+        assertEq(usdn.totalPrincipal(), 0, "Total principal should still be 0");
+    }
+
 }
