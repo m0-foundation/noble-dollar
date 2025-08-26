@@ -163,7 +163,7 @@ contract NobleDollarTest is Test {
 
         assertEq(_user1Balance, 1000000e6, "user 1 should have 1 million usdn");
 
-        vm.expectRevert(NobleDollar.InvalidTransfer());
+        vm.expectRevert(abi.encodeWithSelector(NobleDollar.InvalidTransfer.selector));
 
         vm.prank(USER1);
         usdn.transfer(address(usdn), 1000e6);
@@ -185,9 +185,9 @@ contract NobleDollarTest is Test {
         assertEq(_user1Balance, 1000000e6, "user 1 should have 1 million usdn");
 
         vm.prank(USER1);
-        usdn.approve(USER2, type(uint256).max));
+        usdn.approve(USER2, type(uint256).max);
 
-        vm.expectRevert(NobleDollar.InvalidTransfer());
+        vm.expectRevert(abi.encodeWithSelector(NobleDollar.InvalidTransfer.selector));
 
         vm.prank(USER2);
         usdn.transferFrom(USER1, address(usdn), 1000e6);
@@ -232,12 +232,12 @@ contract NobleDollarTest is Test {
         assertEq(_user1Balance, type(uint256).max, "user 1 should have max usdn");
 
         // Test when timestamp has not progressed from mint so claimable yield should revert
-        bytes memory mintPayload = abi.encodeWithSignature(
+        mintPayload = abi.encodeWithSignature(
             "process(bytes,bytes)",
             0x0,
             hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa960450000000000000000000000000000000000000000000000000000000000000001"
         );
-        (bool mintSuccess, bytes memory data) = MAILBOX.call(mintPayload);
+        (mintSuccess, ) = MAILBOX.call(mintPayload);
 
         assertEq(mintSuccess, false, "minting more than uint256 max should fail");
 
@@ -262,12 +262,12 @@ contract NobleDollarTest is Test {
         (bool yieldSuccess,) = MAILBOX.call(yieldPayload);
 
         // Mint 1 million to USER2
-        bytes memory mintPayload = abi.encodeWithSignature(
+        mintPayload = abi.encodeWithSignature(
             "process(bytes,bytes)",
             0x0,
             hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f2f1acbe0ba726fee8d75f3e32900526874740bb000000000000000000000000000000000000000000000000000000e8d4a51000"
         );
-        (bool mintSuccess,) = MAILBOX.call(mintPayload);
+        (mintSuccess,) = MAILBOX.call(mintPayload);
 
         uint256 _principalUSER1 = usdn.principalOf(USER1);
         uint256 _principalUSER2 = usdn.principalOf(USER2);
