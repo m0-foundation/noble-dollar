@@ -479,6 +479,7 @@ contract NobleDollarTest is Test {
         MAILBOX.call(yieldPayload1);
         assertEq(usdn.index(), 2e12, "Index should be 2.0 after 100% yield");
 
+        // Burn entire pre yield claimed balance of USER1
         vm.prank(USER1);
         bytes32 messageId = usdn.transferRemote{value: 1 ether}(
             1313817164,           // destination domain (you used this in setUp)
@@ -495,6 +496,7 @@ contract NobleDollarTest is Test {
         assertEq(usdn.totalPrincipal(), 5e11, "Total principal should be 500k after burn");
         assertEq(usdn.totalSupply(), 1e12, "Contract should still hold unclaimed yield");
 
+        // Claim entire yield with remaining USER1 principal
         vm.prank(USER1);
         usdn.claim();
 
@@ -504,6 +506,7 @@ contract NobleDollarTest is Test {
         assertEq(_balanceUSER1, 1e12, "USER1 should have all yield as balance after claiming");
         assertEq(_principalUSER1, 5e11, "USER1 principal should remain the same");
 
+        // Realize 100% yield again, 1m tokens
         bytes memory yieldPayload2 = abi.encodeWithSignature(
             "process(bytes,bytes)",
             0x0,
