@@ -18,7 +18,6 @@
 pragma solidity >=0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
 
 import {NoopIsm} from "@hyperlane/isms/NoopIsm.sol";
 import {Message} from "@hyperlane/libs/Message.sol";
@@ -217,19 +216,20 @@ contract NobleDollarTest is Test {
 
     }
 
-    function test_uint256MaxMint () public {
+    function test_uint112MaxMint () public {
 
         // Test when timestamp has not progressed from mint so claimable yield should revert
         bytes memory mintPayload = abi.encodeWithSignature(
             "process(bytes,bytes)",
             0x0,
-            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            // hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000ffffffffffffffffffffffffffff"
         );
         (bool mintSuccess,) = MAILBOX.call(mintPayload);
 
         uint256 _user1Balance = usdn.balanceOf(USER1);
 
-        assertEq(_user1Balance, type(uint256).max, "user 1 should have max usdn");
+        assertEq(_user1Balance, type(uint112).max, "user 1 should have max usdn");
 
         // Test when timestamp has not progressed from mint so claimable yield should revert
         mintPayload = abi.encodeWithSignature(
@@ -239,7 +239,7 @@ contract NobleDollarTest is Test {
         );
         (mintSuccess, ) = MAILBOX.call(mintPayload);
 
-        assertEq(mintSuccess, false, "minting more than uint256 max should fail");
+        assertEq(mintSuccess, false, "minting more than uint112 max should fail");
 
     }
 
@@ -249,7 +249,7 @@ contract NobleDollarTest is Test {
         bytes memory mintPayload = abi.encodeWithSignature(
             "process(bytes,bytes)",
             0x0,
-            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            hex"03000000004e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000e8d4a51000"
         );
         (bool mintSuccess,) = MAILBOX.call(mintPayload);
 
@@ -383,7 +383,7 @@ contract NobleDollarTest is Test {
             hex"03000000014e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000000000000000000000000000000000e8d4a51000"
         );
         ( success, ) = MAILBOX.call(yieldPayload);
-        
+
         // USER1 should have 1M yield
         assertEq(usdn.yield(USER1), 1e12, "USER1 should have 1M yield before transfer");
         
@@ -394,23 +394,28 @@ contract NobleDollarTest is Test {
         // Call yield
         uint256 user1Yield = usdn.yield(USER1);
         uint256 user2Yield = usdn.yield(USER2);
-        
-        assertEq(user1Yield, 5e11, "USER1 should have 500k of yield");
-        assertEq(user2Yield, 5e11, "USER2 should have 500k of yield");
+
+        assertEq(user1Yield, 1e12, "USER1 should have 1m of yield");
+        assertEq(user2Yield, 0, "USER2 should have 0 yield");
         
         // USER1 claims their yield
         vm.prank(USER1);
         usdn.claim();
-        assertEq(usdn.balanceOf(USER1), 1e12, "USER1 should have 1M balance after claiming yield");
+        assertEq(usdn.balanceOf(USER1), 15e11, "USER1 should have 1.5M balance after claiming yield");
 
-        // USER2 claims their yield
+        // USER2 yield claim should fail
+        vm.expectRevert(abi.encode(NobleDollar.NoClaimableYield.selector));
         vm.prank(USER2);
         usdn.claim();
-        assertEq(usdn.balanceOf(USER2), 1e12, "USER2 should have 1M balance after claiming yield");
-        
+
         // Accrue another 1M yield (now distributed proportionally)
+        yieldPayload = abi.encodeWithSignature(
+            "process(bytes,bytes)",
+            0x0,
+            hex"03000000024e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000000000000000000000000000000000e8d4a51000"
+        );
         ( success, ) = MAILBOX.call(yieldPayload);
-        
+
         // Both users should have yield proportional to their principal
         // USER1 has ~500k principal, USER2 has ~500k principal (from transfer)
         // So each should get approximately 500k yield
@@ -418,18 +423,18 @@ contract NobleDollarTest is Test {
         uint256 user2NewYield = usdn.yield(USER2);
         
         // Due to rounding, yields might not be exactly 500k each
-        assertApproxEqAbs(user1NewYield, 5e11, 2, "USER1 should have ~500k new yield");
-        assertApproxEqAbs(user2NewYield, 5e11, 2, "USER1 should have ~500k new yield");
+        assertApproxEqAbs(user1NewYield, 75e10, 2, "USER1 should have ~750k new yield");
+        assertApproxEqAbs(user2NewYield, 25e10, 2, "USER1 should have ~250k new yield");
 
         // USER1 claims their yield
         vm.prank(USER1);
         usdn.claim();
-        assertEq(usdn.balanceOf(USER1), 15e11, "USER1 should have 1.5M balance after claiming yield");
+        assertEq(usdn.balanceOf(USER1), 225e10, "USER1 should have 2.25M balance after claiming yield");
 
         // USER2 claims their yield
         vm.prank(USER2);
         usdn.claim();
-        assertEq(usdn.balanceOf(USER2), 15e11, "USER2 should have 1.5M balance after claiming yield");
+        assertEq(usdn.balanceOf(USER2), 75e10, "USER2 should have 750k balance after claiming yield");
         
     }
 
@@ -473,24 +478,44 @@ contract NobleDollarTest is Test {
         );
         MAILBOX.call(yieldPayload1);
         assertEq(usdn.index(), 2e12, "Index should be 2.0 after 100% yield");
-        
-        // USER1 burns all their tokens (transfer to address(0))
+
         vm.prank(USER1);
-        usdn.transfer(address(0), usdn.balanceOf(USER1));
-        
-        assertEq(usdn.totalPrincipal(), 0, "Total principal should be 0 after burn");
+        bytes32 messageId = usdn.transferRemote{value: 1 ether}(
+            1313817164,           // destination domain (you used this in setUp)
+            bytes32(uint256(uint160(USER2))),
+            1e12                  // amount to transfer (1M USDN)
+        );
+
+        uint256 _balanceUSER1 = usdn.balanceOf(USER1);
+        uint256 _principalUSER1 = usdn.principalOf(USER1);
+
+        assertEq(_balanceUSER1, 0, "USER1 balance should be 0 after transfer");
+        assertEq(_principalUSER1, 5e11, "USER1 principal should be halved after burn");
+
+        assertEq(usdn.totalPrincipal(), 5e11, "Total principal should be 500k after burn");
         assertEq(usdn.totalSupply(), 1e12, "Contract should still hold unclaimed yield");
-        
-        // Try to accrue more yield with zero principal
+
+        vm.prank(USER1);
+        usdn.claim();
+
+        _balanceUSER1 = usdn.balanceOf(USER1);
+        _principalUSER1 = usdn.principalOf(USER1);
+
+        assertEq(_balanceUSER1, 1e12, "USER1 should have all yield as balance after claiming");
+        assertEq(_principalUSER1, 5e11, "USER1 principal should remain the same");
+
         bytes memory yieldPayload2 = abi.encodeWithSignature(
             "process(bytes,bytes)",
             0x0,
-            hex"03000000024e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a0000000000000000000000000000000000000000000000000000000074742400"
+            hex"03000000024e4f424c726f757465725f6170700000000000000000000000000001000000000000000000000001000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000f62849f9a0b5bf2913b396098f7c7019b51a820a000000000000000000000000000000000000000000000000000000e8d4a51000"
         );
         MAILBOX.call(yieldPayload2);
+
+        _balanceUSER1 = usdn.balanceOf(USER1);
+        _principalUSER1 = usdn.principalOf(USER1);
+
+        assertEq(usdn.index(), 4e12, "index should be doubled again");
         
-        // Index should remain at 2.0 since there's no principal
-        assertEq(usdn.index(), 2e12, "Index should remain unchanged with zero principal");
     }
 
 }
