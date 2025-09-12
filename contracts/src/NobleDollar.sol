@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.22;
 
 import {HypERC20} from "@hyperlane/token/HypERC20.sol";
 
@@ -144,7 +144,9 @@ contract NobleDollar is HypERC20 {
      * @custom:emits YieldClaimed when yield is successfully claimed.
      */
     function claim() public {
-        uint256 amount = yield(msg.sender);
+
+        // Avoid claiming DOS by taking min of the contract's balance and user's yield 
+        uint256 amount = UIntMath.min256(balanceOf(address(this)), yield(msg.sender));
 
         if (amount == 0) revert NoClaimableYield();
 
