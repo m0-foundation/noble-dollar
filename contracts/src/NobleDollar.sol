@@ -184,6 +184,21 @@ contract NobleDollar is HypERC20 {
         // We don't want to allow any other transfers to the yield account.
         if (from != address(0) && to == address(this)) revert InvalidTransfer();
 
+        // Check for claimable yield to disallow future yield claiming with 
+        // zero balance and non-zero principal therefore preserving supply invariant
+        if (from != address(0) && from != address(this)) {
+
+            uint256 claimableYield = yield(from);
+
+            if (claimableYield > 0) {
+
+                _update(address(this), msg.sender, amount);
+
+                emit YieldClaimed(msg.sender, amount);
+            }
+
+        }
+
         USDNStorage storage $ = _getUSDNStorage();
 
         // Distribute yield, derive new index from the adjusted total supply.
